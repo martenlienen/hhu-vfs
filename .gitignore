@@ -1,0 +1,6 @@
+# Test artifacts
+*.structure
+*.store
+
+# Build artifacts
+vfs
