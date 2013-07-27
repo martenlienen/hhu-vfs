@@ -17,6 +17,20 @@ bool file_exists (const char* file) {
   }
 }
 
+
+/**
+ * Schreibt in eine Datei und gibt bei Erfolg 0 zurück.
+ */
+int file_write (const void* data, int size, int num, FILE* file) {
+  fwrite(data, size, num, file);
+
+  if (ferror(file)) {
+    return 1;
+  } else {
+    return 0;
+  }
+}
+
 struct FileInfo {
   /**
    * Dateiname
@@ -59,24 +73,43 @@ struct ArchiveInfo {
   struct FileInfo** file_infos;
 }; 
 
-struct ArchiveInfo* archive_info_create_empty (ulint blocksize, ulint blockcount) {
+struct ArchiveInfo* archive_info_create_empty () {
   struct ArchiveInfo* archive_info = malloc(sizeof(struct ArchiveInfo));
-  archive_info->blocksize = blocksize;
-  archive_info->blockcount = blockcount;
-  archive_info->blocks = malloc(blockcount * sizeof(int));
+  archive_info->blocksize = 0;
+  archive_info->blockcount = 0;
+  archive_info->blocks = NULL;
   archive_info->num_files = 0;
   archive_info->file_infos = NULL;
-
-  memset(archive_info->blocks, -1, blockcount);
 
   return archive_info;
 }
 
-/**
- * Speichert das Archiv in eine Strukturdatei.
- */
-int archive_info_save (struct ArchiveInfo* archive_info, FILE* file) {
+int archive_info_initialize (struct ArchiveInfo* archive_info, ulint blocksize, ulint blockcount) {
+  archive_info->blocksize = blocksize;
+  archive_info->blockcount = blockcount;
+  archive_info->blocks = malloc(blocksize * blockcount);
+
+  memset(archive_info->blocks, -1, blocksize * blockcount);
+
   return 0;
+}
+
+int archive_info_write (struct ArchiveInfo* archive_info, FILE* file) {
+  int status = 0;
+
+  status == 0 && (status = file_write(archive_info, sizeof(ulint), 2, file));
+  status == 0 && (status = file_write(archive_info->blocks, sizeof(int), archive_info->blockcount, file));
+  status == 0 && (status = file_write(&archive_info->num_files, sizeof(int), 1, file));
+
+  int i;
+  for (i = 0; i < archive_info->num_files && status == 0; i++) {
+    struct FileInfo* file_info = archive_info->file_infos[i]; 
+
+    file_write(file_info->name, sizeof(char), strlen(file_info->name) + 1, file);
+    status == 0 && (status = file_write(&file_info->size, sizeof(int), 1, file));
+  }
+
+  return status;
 }
 
 void archive_info_free (struct ArchiveInfo* archive_info) {
@@ -119,7 +152,6 @@ struct Archive* archive_create () {
 
 int archive_write_archive_info (struct Archive*);
 int archive_initialize_store(struct Archive*);
-int archive_fwrite(const void*, int, int, FILE*);
 
 /**
  * Initialisiert ein leeres Archiv.
@@ -131,7 +163,8 @@ int archive_initialize_empty (struct Archive* archive, const char* structure_fil
   archive->store_file = malloc((strlen(store_file) + 1) * sizeof(char));
   strcpy(archive->store_file, store_file);
 
-  archive->archive_info = archive_info_create_empty(blocksize, blockcount);
+  archive->archive_info = archive_info_create_empty();
+  archive_info_initialize(archive->archive_info, blocksize, blockcount);
 
   int status = 0;
 
@@ -158,19 +191,7 @@ int archive_write_archive_info (struct Archive* archive) {
   if (structure_file == NULL) {
     status = ARCHIVE_NOT_WRITEABLE;
   } else {
-    struct ArchiveInfo* archive_info = archive->archive_info;
-
-    status == 0 && (status = archive_fwrite(archive_info, sizeof(ulint), 2, structure_file));
-    status == 0 && (status = archive_fwrite(archive_info->blocks, sizeof(int), archive_info->blockcount, structure_file));
-    status == 0 && (status = archive_fwrite(&archive_info->num_files, sizeof(int), 1, structure_file));
-
-    int i;
-    for (i = 0; i < archive_info->num_files && status == 0; i++) {
-      struct FileInfo* file_info = archive_info->file_infos[i]; 
-
-      archive_fwrite(file_info->name, sizeof(char), strlen(file_info->name) + 1, structure_file);
-      status == 0 && (status = archive_fwrite(&file_info->size, sizeof(int), 1, structure_file));
-    }
+    status = archive_info_write(archive->archive_info, structure_file);
 
     if (status != 0) {
       status = ARCHIVE_NOT_WRITEABLE;
@@ -180,21 +201,6 @@ int archive_write_archive_info (struct Archive* archive) {
   }
 
   return status; 
-}
-
-/**
- * Schreibt in eine Datei und gibt bei Erfolg 0 zurück.
- *
- * @private
- */
-int archive_fwrite (const void* data, int size, int num, FILE* file) {
-  fwrite(data, size, num, file);
-
-  if (ferror(file)) {
-    return 1;
-  } else {
-    return 0;
-  }
 }
 
 /**
@@ -233,9 +239,10 @@ int archive_initialize_store (struct Archive* archive) {
  * Gibt alle belegten Resourcen frei.
  */
 void archive_free (struct Archive* archive) {
+  archive_info_free(archive->archive_info);
+
   free(archive->structure_file);
   free(archive->store_file);
-  free(archive->archive_info);
   free(archive);
 }
 
