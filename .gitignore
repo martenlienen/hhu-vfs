@@ -1,6 +1,6 @@
 # Test artifacts
-*.structure
-*.store
+/tmp
 
 # Build artifacts
-vfs
+/vfs
+*.pyc
