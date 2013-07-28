@@ -340,6 +340,28 @@ void archiveinfo_add_file (struct ArchiveInfo* archive_info, const char* name, l
   }
 }
 
+void archiveinfo_delete_file (struct ArchiveInfo* archive_info, const char* name) {
+  int index = archiveinfo_get_file_index(archive_info, name);
+
+  if (index != -1) {
+    int i;
+    for (i = index; i < archive_info->num_files - 1; i++) {
+      archive_info->file_infos[i] = archive_info->file_infos[i + 1];
+    }
+
+    archive_info->num_files--;
+    archive_info->file_infos = realloc(archive_info->file_infos, archive_info->num_files * sizeof(struct FileInfo*));
+
+    for (i = 0; i < archive_info->blockcount; i++) {
+      if (archive_info->blocks[i] == index) {
+        archive_info->blocks[i] = -1;
+      } else if (archive_info->blocks[i] > index) {
+        archive_info->blocks[i]--;
+      }
+    }
+  }
+}
+
 void archiveinfo_free (struct ArchiveInfo* archive_info) {
   free(archive_info->blocks);
 
@@ -569,6 +591,20 @@ int archive_get_file (struct Archive* archive, const char* name, const char* out
   return status;
 }
 
+int archive_delete_file (struct Archive* archive, const char* name) {
+  int status = 0;
+  struct ArchiveInfo* archive_info = archive->archive_info;
+
+  if (!archiveinfo_has_file(archive_info, name)) {
+    status = ARCHIVE_FILE_NOT_FOUND;
+  } else {
+    archiveinfo_delete_file(archive_info, name);
+    status = archive_write_archive_info(archive);
+  }
+
+  return status;
+}
+
 /**
  * Erzeugt die beiden speziellen Pfade aus dem allgemeinen Archivpfad.
  *
@@ -718,6 +754,26 @@ int cli_get (const char* archive_path, const char* name, const char* output_path
   }
 }
 
+int cli_del (const char* archive_path, const char* name) {
+  int status = 0;
+
+  struct Archive* archive = archive_create();
+  status = archive_initialize_from_file(archive, archive_path);
+  status == 0 && (status = archive_delete_file(archive, name));
+  archive_free(archive);
+
+  switch (status) {
+    case ARCHIVE_NOT_READABLE:
+      printf("Das Archiv ist nicht lesbar");
+      return 2;
+    case ARCHIVE_FILE_NOT_FOUND:
+      printf("Die Datei ist nicht im Archiv");
+      return 21;
+    default:
+      return 0;
+  }
+}
+
 void help_create () {
   printf("USAGE: vfs ARCHIVE create BLOCKSIZE BLOCKCOUNT");
 }
@@ -730,10 +786,15 @@ void help_get () {
   printf("USAGE: vfs ARCHIVE get SOURCE OUTPUT");
 }
 
+void help_del () {
+  printf("USAGE: vfs ARCHIVE del TARGET");
+}
+
 void help () {
   help_create();
   help_add();
   help_get();
+  help_del();
 }
 
 int main (int argc, char** argv) {
@@ -774,6 +835,13 @@ int main (int argc, char** argv) {
     }
 
     return cli_get(archive_path, argv[3], argv[4]);
+  } else if (strcmp(command, "del") == 0) {
+    if (argc < 4) {
+      help_del();
+      return 66;
+    }
+
+    return cli_del(archive_path, argv[3]);
   } else {
     printf("Der Befehl ist ungültig");
     help();

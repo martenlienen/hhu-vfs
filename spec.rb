@@ -130,4 +130,42 @@ describe "VFS" do
       end
     end
   end
+  
+  describe "Deleting files" do
+    it "should exit with code 2 when the vfs does not exist" do
+      `./vfs ./tmp/archive del file`
+
+      expect($?.exitstatus).to eq 2
+    end
+
+    describe "when the archive exists" do
+      before(:each) do
+        `./vfs ./tmp/archive create 10 10`
+      end
+
+      it "should exit with code 21 if the file does not exist in the archive" do
+        `./vfs ./tmp/archive del file`
+
+        expect($?.exitstatus).to eq 21
+      end
+
+      describe "when a file was deleted" do
+        before(:each) do
+          `echo "test" > ./tmp/file`
+          `./vfs ./tmp/archive add ./tmp/file file`
+          `./vfs ./tmp/archive del file`
+        end
+
+        it "should exit with code 0" do
+          expect($?.exitstatus).to eq 0
+        end
+
+        it "should delete the file from the archive" do
+          `./vfs ./tmp/archive del file`
+
+          expect($?.exitstatus).to eq 21
+        end
+      end
+    end
+  end
 end
