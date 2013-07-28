@@ -87,9 +87,9 @@ struct ArchiveInfo* archive_info_create_empty () {
 int archive_info_initialize (struct ArchiveInfo* archive_info, ulint blocksize, ulint blockcount) {
   archive_info->blocksize = blocksize;
   archive_info->blockcount = blockcount;
-  archive_info->blocks = malloc(blocksize * blockcount);
+  archive_info->blocks = malloc(blockcount * sizeof(int));
 
-  memset(archive_info->blocks, -1, blocksize * blockcount * sizeof(int));
+  memset(archive_info->blocks, -1, blockcount * sizeof(int));
 
   return 0;
 }
@@ -152,16 +152,13 @@ struct Archive* archive_create () {
 
 int archive_write_archive_info (struct Archive*);
 int archive_initialize_store(struct Archive*);
+void archive_initialize_paths(struct Archive* archive, const char* archive_path);
 
 /**
  * Initialisiert ein leeres Archiv.
  */
-int archive_initialize_empty (struct Archive* archive, const char* structure_file, const char* store_file, ulint blocksize, ulint blockcount) {
-  archive->structure_file = malloc((strlen(structure_file) + 1) * sizeof(char));
-  strcpy(archive->structure_file, structure_file);
-
-  archive->store_file = malloc((strlen(store_file) + 1) * sizeof(char));
-  strcpy(archive->store_file, store_file);
+int archive_initialize_empty (struct Archive* archive, const char* archive_path, ulint blocksize, ulint blockcount) {
+  archive_initialize_paths(archive, archive_path);
 
   archive->archive_info = archive_info_create_empty();
   archive_info_initialize(archive->archive_info, blocksize, blockcount);
@@ -176,6 +173,14 @@ int archive_initialize_empty (struct Archive* archive, const char* structure_fil
   status == 0 && (status = archive_initialize_store(archive));
 
   return status;
+}
+
+void archive_initialize_paths (struct Archive* archive, const char* archive_path) {
+  archive->structure_file = malloc((strlen(archive_path) + 10 + 1) * sizeof(char));
+  archive->store_file = malloc((strlen(archive_path) + 6 + 1) * sizeof(char));
+
+  sprintf(archive->structure_file, "%s.structure", archive_path);
+  sprintf(archive->store_file, "%s.store", archive_path);
 }
 
 /**
@@ -246,11 +251,11 @@ void archive_free (struct Archive* archive) {
   free(archive);
 }
 
-int cli_create (char* structure_path, char* store_path, ulint blocksize, ulint blockcount) {
+int cli_create (const char* archive_path, ulint blocksize, ulint blockcount) {
   int status = 0;
 
   struct Archive* archive = archive_create();
-  status = archive_initialize_empty(archive, structure_path, store_path, blocksize, blockcount);
+  status = archive_initialize_empty(archive, archive_path, blocksize, blockcount);
   archive_free(archive);
 
   switch (status) {
@@ -265,7 +270,7 @@ int cli_create (char* structure_path, char* store_path, ulint blocksize, ulint b
   }
 }
 
-int cli_add (const char* structure_path, const char* store_path, const char* source_path, const char* target) {
+int cli_add (const char* archive_path, const char* source_path, const char* target) {
   int status = 0;
 
   if (!file_exists(source_path)) {
@@ -296,13 +301,8 @@ int main (int argc, char** argv) {
     return 66;
   }
 
-  char* path_prefix = argv[1];
-  char store_path[strlen(path_prefix) + 6 + 1];
-  char structure_path[strlen(path_prefix) + 10 + 1];
+  char* archive_path = argv[1];
   char* command = argv[2];
-
-  sprintf(store_path, "%s.store", path_prefix);
-  sprintf(structure_path, "%s.structure", path_prefix);
 
   if (strcmp(command, "create") == 0) {
     if (argc < 5) {
@@ -318,12 +318,7 @@ int main (int argc, char** argv) {
       return 66;
     }
     
-    return cli_create(structure_path, store_path, blocksize, blockcount);
-  }
-
-  if (!file_exists(store_path) || !file_exists(structure_path)) {
-    printf("Das Archiv existiert nicht");
-    return 2;
+    return cli_create(archive_path, blocksize, blockcount);
   }
 
   if (strcmp(command, "add") == 0) {
@@ -332,6 +327,6 @@ int main (int argc, char** argv) {
       return 66;
     }
 
-    return cli_add(structure_path, store_path, argv[3], argv[4]);
+    return cli_add(archive_path, argv[3], argv[4]);
   }
 }
