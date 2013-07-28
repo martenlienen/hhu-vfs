@@ -264,6 +264,66 @@ void archiveinfo_get_free_blocks (struct ArchiveInfo* archive_info, ulint* block
 }
 
 /**
+ * Gibt den Index der Datei in der internen Liste der Dateien zurück.
+ *
+ * @private
+ */
+int archiveinfo_get_file_index (struct ArchiveInfo* archive_info, const char* name) {
+  int i;
+  for (i = 0; i < archive_info->num_files; i++) {
+    if (strcmp(name, archive_info->file_infos[i]->name) == 0) {
+      return i;
+    }
+  }
+
+  return -1;
+}
+
+int archiveinfo_get_file_size (struct ArchiveInfo* archive_info, const char* name) {
+  int index = archiveinfo_get_file_index(archive_info, name);
+
+  if (index == -1) {
+    return 0;
+  } else {
+    return archive_info->file_infos[index]->size;
+  }
+}
+
+ulint archiveinfo_get_num_allocated_blocks (struct ArchiveInfo* archive_info, const char* name) {
+  int index = archiveinfo_get_file_index(archive_info, name);
+
+  if (index == -1) {
+    return 0;
+  } else {
+    ulint num = 0;
+
+    ulint i;
+    for (i = 0; i < archive_info->blockcount; i++) {
+      if (archive_info->blocks[i] == index) {
+        num++;
+      }
+    }
+
+    return num;
+  }
+}
+
+void archiveinfo_get_allocated_blocks (struct ArchiveInfo* archive_info, const char* name, ulint* blocks) {
+  int index = archiveinfo_get_file_index(archive_info, name);
+
+  if (index != -1) {
+    int block_index = 0;
+    int i;
+    for (i = 0; i < archive_info->blockcount; i++) {
+      if (archive_info->blocks[i] == index) {
+        blocks[block_index] = i;
+        block_index++;
+      }
+    }
+  }
+}
+
+/**
  * Fügt eine neue Datei hinzu und reserviert die übergebenen Blöcke dafür.
  */
 void archiveinfo_add_file (struct ArchiveInfo* archive_info, const char* name, long int size, ulint* blocks, ulint num_blocks) {
@@ -300,6 +360,7 @@ void archiveinfo_free (struct ArchiveInfo* archive_info) {
 #define ARCHIVE_FILE_TOO_BIG 5
 #define ARCHIVE_FILE_NOT_FOUND 6
 #define FILE_NOT_READABLE 7
+#define FILE_NOT_WRITEABLE 8
 
 /**
  * Ein High-Level-Interface um mit einem Archiv zu interagieren.
@@ -373,7 +434,38 @@ int archive_initialize_from_file (struct Archive* archive, const char* archive_p
  * blocks indiziert werden.
  */
 int archive_write_file_to_blocks (struct Archive* archive, FILE* file, long int bytes, ulint* blocks, ulint num_blocks) {
-  return 0;
+  int status = 0;
+  struct ArchiveInfo* archive_info = archive->archive_info;
+  FILE* store = fopen(archive->store_file, "w");
+
+  if (store == NULL) {
+    status = ARCHIVE_NOT_WRITEABLE;
+  } else {
+    char buffer[archive_info->blocksize];
+    int i;
+    for (i = 0; i < num_blocks; i++) {
+      int chunk_size;
+
+      if (bytes > archive_info->blocksize) {
+        chunk_size = archive_info->blocksize;
+        bytes -= archive_info->blocksize;
+      } else {
+        chunk_size = bytes;
+      }
+
+      if (file_read(&buffer, 1, chunk_size, file) != 0) {
+        status = FILE_NOT_READABLE;
+        break;
+      } else if (file_write(&buffer, 1, chunk_size, store) != 0) {
+        status = ARCHIVE_NOT_WRITEABLE;
+        break;
+      }
+    }
+
+    fclose(store);
+  }
+
+  return status;
 }
 
 /**
@@ -426,6 +518,52 @@ int archive_get_file (struct Archive* archive, const char* name, const char* out
 
   if (!archiveinfo_has_file(archive_info, name)) {
     status = ARCHIVE_FILE_NOT_FOUND;
+  } else {
+    int num_blocks = archiveinfo_get_num_allocated_blocks(archive_info, name);
+    ulint* blocks = malloc(num_blocks * sizeof(ulint));
+    archiveinfo_get_allocated_blocks(archive_info, name, blocks);
+
+    FILE* store = fopen(archive->store_file, "r");
+
+    if (store == NULL) {
+      status = ARCHIVE_NOT_READABLE;
+    } else {
+      FILE* output = fopen(output_path, "w");
+
+      if (output == NULL) {
+        status = FILE_NOT_WRITEABLE;
+      } else {
+        long int bytes_left = archiveinfo_get_file_size(archive_info, name);
+        char buffer[archive_info->blocksize];
+        int i;
+        for (i = 0; i < num_blocks; i++) {
+          int position = blocks[i] * archive_info->blocksize;
+          int chunk_size = archive_info->blocksize;
+
+          if (bytes_left > archive_info->blocksize) {
+            chunk_size = archive_info->blocksize;
+            bytes_left -= archive_info->blocksize;
+          } else {
+            chunk_size = bytes_left;
+          }
+
+          fseek(store, position, SEEK_SET);
+          if (file_read(&buffer, 1, chunk_size, store) != 0) {
+            status = ARCHIVE_NOT_READABLE;
+            break;
+          } else if (file_write(&buffer, 1, chunk_size, output) != 0) {
+            status = FILE_NOT_WRITEABLE;
+            break;
+          }
+        }
+
+        fclose (output);
+      }
+
+      fclose(store);
+    }
+
+    free(blocks);
   }
 
   return status;
@@ -572,6 +710,9 @@ int cli_get (const char* archive_path, const char* name, const char* output_path
     case ARCHIVE_FILE_NOT_FOUND:
       printf("Die gesuchte Datei ist nicht im Archiv");
       return 21;
+    case FILE_NOT_WRITEABLE:
+      printf("Die Ausgabedatei konnte nicht erstellt werden");
+      return 30;
     default:
       return 0;
   }

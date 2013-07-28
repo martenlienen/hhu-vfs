@@ -48,7 +48,7 @@ describe "VFS" do
 
     describe "when writing to a valid archive" do
       before(:each) do
-        `./vfs ./tmp/archive create 4096 4`
+        `./vfs ./tmp/archive create 8192 4`
       end
 
       it "should exit with code 0 when the file has been added" do
@@ -78,7 +78,7 @@ describe "VFS" do
       end
 
       it "should exit with code 12 when there is not enough space left" do
-        `dd count=1 bs=10K if=/dev/zero of=./tmp/file 2>&1 > /dev/null`
+        `dd count=1 bs=20K if=/dev/zero of=./tmp/file 2>&1 > /dev/null`
         `./vfs ./tmp/archive add ./tmp/file file1`
         `./vfs ./tmp/archive add ./tmp/file file2`
 
@@ -94,11 +94,40 @@ describe "VFS" do
       expect($?.exitstatus).to eq 2
     end 
 
-    it "should exit with code 21 when the file is not in the archive" do
-      `./vfs ./tmp/archive create 4 4`
-      `./vfs ./tmp/archive get file ./tmp/out`
+    describe "when the archive exists" do
+      before(:each) do
+        `./vfs ./tmp/archive create 100 1000`
+      end
 
-      expect($?.exitstatus).to eq 21
+      it "should exit with code 21 when the file is not in the archive" do
+        `./vfs ./tmp/archive get file ./tmp/out`
+
+        expect($?.exitstatus).to eq 21
+      end
+
+      describe "when the file is in the archive" do
+        before(:each) do
+          `./vfs ./tmp/archive add vfs.c file`
+        end
+
+        it "should exit with code 0 on success" do
+          `./vfs ./tmp/archive get file ./tmp/out`
+
+          expect($?.exitstatus).to eq 0
+        end
+
+        it "should put the contents of the file in the archive into the output file" do
+          `./vfs ./tmp/archive get file ./tmp/out`
+
+          expect(IO.read("./tmp/out")).to eq IO.read("./vfs.c")
+        end
+
+        it "should exit with code 30 when the output file is not writeable" do
+          `./vfs ./tmp/archive get file /root/xx`
+
+          expect($?.exitstatus).to eq 30
+        end
+      end
     end
   end
 end
