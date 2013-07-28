@@ -89,7 +89,7 @@ int archive_info_initialize (struct ArchiveInfo* archive_info, ulint blocksize, 
   archive_info->blockcount = blockcount;
   archive_info->blocks = malloc(blocksize * blockcount);
 
-  memset(archive_info->blocks, -1, blocksize * blockcount);
+  memset(archive_info->blocks, -1, blocksize * blockcount * sizeof(int));
 
   return 0;
 }
@@ -105,7 +105,7 @@ int archive_info_write (struct ArchiveInfo* archive_info, FILE* file) {
   for (i = 0; i < archive_info->num_files && status == 0; i++) {
     struct FileInfo* file_info = archive_info->file_infos[i]; 
 
-    file_write(file_info->name, sizeof(char), strlen(file_info->name) + 1, file);
+    status = file_write(file_info->name, sizeof(char), strlen(file_info->name) + 1, file);
     status == 0 && (status = file_write(&file_info->size, sizeof(int), 1, file));
   }
 
