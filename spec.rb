@@ -72,7 +72,7 @@ describe "VFS" do
         end
         
         it "should exit with code 12 when there is not enough space" do
-          `dd count=100000 if=/dev/null of=./tmp/big_file 2>&1 > /dev/null`
+          `dd count=1 bs=10M if=/dev/zero of=./tmp/big_file 2>&1 > /dev/null`
           `./vfs ./tmp/archive add ./tmp/big_file too_big`
 
           expect($?.exitstatus).to eq 12
