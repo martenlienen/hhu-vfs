@@ -298,7 +298,8 @@ void archive_info_free (struct ArchiveInfo* archive_info) {
 #define ARCHIVE_NOT_READABLE 3
 #define ARCHIVE_FILE_ALREADY_EXISTS 4
 #define ARCHIVE_FILE_TOO_BIG 5
-#define FILE_NOT_READABLE 6
+#define ARCHIVE_FILE_NOT_FOUND 6
+#define FILE_NOT_READABLE 7
 
 /**
  * Ein High-Level-Interface um mit einem Archiv zu interagieren.
@@ -414,6 +415,17 @@ int archive_add_file (struct Archive* archive, const char* name, const char* pat
 
       fclose(file);
     }
+  }
+
+  return status;
+}
+
+int archive_get_file (struct Archive* archive, const char* name, const char* output_path) {
+  int status = 0;
+  struct ArchiveInfo* archive_info = archive->archive_info;
+
+  if (!archive_info_has_file(archive_info, name)) {
+    status = ARCHIVE_FILE_NOT_FOUND;
   }
 
   return status;
@@ -545,6 +557,26 @@ int cli_add (const char* archive_path, const char* source_path, const char* targ
   }
 }
 
+int cli_get (const char* archive_path, const char* name, const char* output_path) {
+  int status = 0;
+
+  struct Archive* archive = archive_create();
+  status = archive_initialize_from_file(archive, archive_path);
+  status == 0 && (status = archive_get_file(archive, name, output_path));
+  archive_free(archive);
+
+  switch (status) {
+    case ARCHIVE_NOT_READABLE:
+      printf("Das Archiv ist nicht lesbar");
+      return 2;
+    case ARCHIVE_FILE_NOT_FOUND:
+      printf("Die gesuchte Datei ist nicht im Archiv");
+      return 21;
+    default:
+      return 0;
+  }
+}
+
 void help_create () {
   printf("USAGE: vfs ARCHIVE create BLOCKSIZE BLOCKCOUNT");
 }
@@ -553,9 +585,14 @@ void help_add () {
   printf("USAGE: vfs ARCHIVE add SOURCE TARGET");
 }
 
+void help_get () {
+  printf("USAGE: vfs ARCHIVE get SOURCE OUTPUT");
+}
+
 void help () {
   help_create();
   help_add();
+  help_get();
 }
 
 int main (int argc, char** argv) {
@@ -582,14 +619,23 @@ int main (int argc, char** argv) {
     }
     
     return cli_create(archive_path, blocksize, blockcount);
-  }
-
-  if (strcmp(command, "add") == 0) {
+  } else if (strcmp(command, "add") == 0) {
     if (argc < 5) {
       help_add();
       return 66;
     }
 
     return cli_add(archive_path, argv[3], argv[4]);
+  } else if (strcmp(command, "get") == 0) {
+    if (argc < 5) {
+      help_get();
+      return 66;
+    }
+
+    return cli_get(archive_path, argv[3], argv[4]);
+  } else {
+    printf("Der Befehl ist ungültig");
+    help();
+    return 66;
   }
 }

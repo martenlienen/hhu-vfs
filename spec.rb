@@ -39,53 +39,66 @@ describe "VFS" do
     end
   end
 
-  describe "Reading and writing" do
-    describe "writing files" do
-      it "should exit with code 2 when the vfs is not readable" do
+  describe "Adding files" do
+    it "should exit with code 2 when the vfs is not readable" do
+      `./vfs ./tmp/archive add vfs.c vfs.c`
+
+      expect($?.exitstatus).to eq 2
+    end
+
+    describe "when writing to a valid archive" do
+      before(:each) do
+        `./vfs ./tmp/archive create 4096 4`
+      end
+
+      it "should exit with code 0 when the file has been added" do
         `./vfs ./tmp/archive add vfs.c vfs.c`
 
-        expect($?.exitstatus).to eq 2
+        expect($?.exitstatus).to eq 0
       end
 
-      describe "when writing to a valid archive" do
-        before(:each) do
-          `./vfs ./tmp/archive create 4096 4`
-        end
+      it "should exit with code 13 when the source file does not exist" do
+        `./vfs ./tmp/archive add ./tmp/does_not_exist hi`
 
-        it "should exit with code 0 when the file has been added" do
-          `./vfs ./tmp/archive add vfs.c vfs.c`
-
-          expect($?.exitstatus).to eq 0
-        end
-
-        it "should exit with code 13 when the source file does not exist" do
-          `./vfs ./tmp/archive add ./tmp/does_not_exist hi`
-
-          expect($?.exitstatus).to eq 13
-        end
-         
-        it "should exit with code 11 when a file with the same name already exists" do
-          `./vfs ./tmp/archive add vfs.c vfs.c`
-          `./vfs ./tmp/archive add vfs.c vfs.c`
-
-          expect($?.exitstatus).to eq 11
-        end
-        
-        it "should exit with code 12 when the file is bigger than the archive" do
-          `dd count=1 bs=10M if=/dev/zero of=./tmp/big_file 2>&1 > /dev/null`
-          `./vfs ./tmp/archive add ./tmp/big_file too_big`
-
-          expect($?.exitstatus).to eq 12
-        end
-
-        it "should exit with code 12 when there is not enough space left" do
-          `dd count=1 bs=10K if=/dev/zero of=./tmp/file 2>&1 > /dev/null`
-          `./vfs ./tmp/archive add ./tmp/file file1`
-          `./vfs ./tmp/archive add ./tmp/file file2`
-
-          expect($?.exitstatus).to eq 12
-        end
+        expect($?.exitstatus).to eq 13
       end
+       
+      it "should exit with code 11 when a file with the same name already exists" do
+        `./vfs ./tmp/archive add vfs.c vfs.c`
+        `./vfs ./tmp/archive add vfs.c vfs.c`
+
+        expect($?.exitstatus).to eq 11
+      end
+      
+      it "should exit with code 12 when the file is bigger than the archive" do
+        `dd count=1 bs=10M if=/dev/zero of=./tmp/big_file 2>&1 > /dev/null`
+        `./vfs ./tmp/archive add ./tmp/big_file too_big`
+
+        expect($?.exitstatus).to eq 12
+      end
+
+      it "should exit with code 12 when there is not enough space left" do
+        `dd count=1 bs=10K if=/dev/zero of=./tmp/file 2>&1 > /dev/null`
+        `./vfs ./tmp/archive add ./tmp/file file1`
+        `./vfs ./tmp/archive add ./tmp/file file2`
+
+        expect($?.exitstatus).to eq 12
+      end
+    end
+  end
+
+  describe "Reading files" do
+    it "should exit with code 2 when the archive does not exist" do
+      `./vfs ./tmp/archive get file ./tmp/out`
+
+      expect($?.exitstatus).to eq 2
+    end 
+
+    it "should exit with code 21 when the file is not in the archive" do
+      `./vfs ./tmp/archive create 4 4`
+      `./vfs ./tmp/archive get file ./tmp/out`
+
+      expect($?.exitstatus).to eq 21
     end
   end
 end
