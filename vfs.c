@@ -145,7 +145,7 @@ struct ArchiveInfo {
   struct FileInfo** file_infos;
 }; 
 
-struct ArchiveInfo* archive_info_create () {
+struct ArchiveInfo* archiveinfo_create () {
   struct ArchiveInfo* archive_info = malloc(sizeof(struct ArchiveInfo));
   archive_info->blocksize = 0;
   archive_info->blockcount = 0;
@@ -159,7 +159,7 @@ struct ArchiveInfo* archive_info_create () {
 /**
  * Initialisiert ein ArchiveInfo für ein leeres Archiv.
  */
-int archive_info_initialize_empty (struct ArchiveInfo* archive_info, ulint blocksize, ulint blockcount) {
+int archiveinfo_initialize_empty (struct ArchiveInfo* archive_info, ulint blocksize, ulint blockcount) {
   archive_info->blocksize = blocksize;
   archive_info->blockcount = blockcount;
   archive_info->blocks = malloc(blockcount * sizeof(int));
@@ -172,7 +172,7 @@ int archive_info_initialize_empty (struct ArchiveInfo* archive_info, ulint block
 /**
  * Lädt Archivinfos aus einer Datei.
  */
-int archive_info_initialize_from_file (struct ArchiveInfo* archive_info, FILE* file) {
+int archiveinfo_initialize_from_file (struct ArchiveInfo* archive_info, FILE* file) {
   int status = 0;
 
   status == 0 && (status = file_read(archive_info, sizeof(ulint), 2, file));
@@ -193,7 +193,7 @@ int archive_info_initialize_from_file (struct ArchiveInfo* archive_info, FILE* f
   return status;
 }
 
-int archive_info_write (struct ArchiveInfo* archive_info, FILE* file) {
+int archiveinfo_write (struct ArchiveInfo* archive_info, FILE* file) {
   int status = 0;
 
   status == 0 && (status = file_write(archive_info, sizeof(ulint), 2, file));
@@ -208,7 +208,7 @@ int archive_info_write (struct ArchiveInfo* archive_info, FILE* file) {
   return status;
 }
 
-bool archive_info_has_file (struct ArchiveInfo* archive_info, const char* name) {
+bool archiveinfo_has_file (struct ArchiveInfo* archive_info, const char* name) {
   int i;
   for (i = 0; i < archive_info->num_files; i++) {
     if (strcmp(name, archive_info->file_infos[i]->name) == 0) {
@@ -222,7 +222,7 @@ bool archive_info_has_file (struct ArchiveInfo* archive_info, const char* name) 
 /**
  * Gibt die Anzahl der freien Blöcke im Archiv zurück.
  */
-ulint archive_info_num_free_blocks (struct ArchiveInfo* archive_info) {
+ulint archiveinfo_num_free_blocks (struct ArchiveInfo* archive_info) {
   ulint num_free = 0;
 
   ulint i;
@@ -239,7 +239,7 @@ ulint archive_info_num_free_blocks (struct ArchiveInfo* archive_info) {
  * Gibt die Anzahl der freien Blöcke zurück, die benötigt werden, um eine Datei
  * der Größe size zu speichern.
  */
-ulint archive_info_needed_blocks (struct ArchiveInfo* archive_info, long int size) {
+ulint archiveinfo_needed_blocks (struct ArchiveInfo* archive_info, long int size) {
   ulint needed = size / archive_info->blocksize;
 
   if (size % archive_info->blocksize != 0) {
@@ -252,7 +252,7 @@ ulint archive_info_needed_blocks (struct ArchiveInfo* archive_info, long int siz
 /**
  * Schreibt die Indizes von num freien Blöcken in das Array blocks.
  */
-void archive_info_get_free_blocks (struct ArchiveInfo* archive_info, ulint* blocks, ulint num) {
+void archiveinfo_get_free_blocks (struct ArchiveInfo* archive_info, ulint* blocks, ulint num) {
   ulint block_index = 0;
   ulint i;
   for (i = 0; i < archive_info->blockcount && block_index < num; i++) {
@@ -266,7 +266,7 @@ void archive_info_get_free_blocks (struct ArchiveInfo* archive_info, ulint* bloc
 /**
  * Fügt eine neue Datei hinzu und reserviert die übergebenen Blöcke dafür.
  */
-void archive_info_add_file (struct ArchiveInfo* archive_info, const char* name, long int size, ulint* blocks, ulint num_blocks) {
+void archiveinfo_add_file (struct ArchiveInfo* archive_info, const char* name, long int size, ulint* blocks, ulint num_blocks) {
   int file_info_index = archive_info->num_files;
 
   archive_info->num_files++;
@@ -280,7 +280,7 @@ void archive_info_add_file (struct ArchiveInfo* archive_info, const char* name, 
   }
 }
 
-void archive_info_free (struct ArchiveInfo* archive_info) {
+void archiveinfo_free (struct ArchiveInfo* archive_info) {
   free(archive_info->blocks);
 
   int i;
@@ -318,7 +318,7 @@ struct Archive* archive_create () {
   struct Archive* archive = malloc(sizeof(struct Archive));
   archive->structure_file = NULL;
   archive->store_file = NULL;
-  archive->archive_info = archive_info_create();
+  archive->archive_info = archiveinfo_create();
 
   return archive;
 }
@@ -333,7 +333,7 @@ void archive_initialize_paths(struct Archive* archive, const char* archive_path)
 int archive_initialize_empty (struct Archive* archive, const char* archive_path, ulint blocksize, ulint blockcount) {
   archive_initialize_paths(archive, archive_path);
 
-  archive_info_initialize_empty(archive->archive_info, blocksize, blockcount);
+  archiveinfo_initialize_empty(archive->archive_info, blocksize, blockcount);
 
   int status = 0;
 
@@ -360,7 +360,7 @@ int archive_initialize_from_file (struct Archive* archive, const char* archive_p
   if (file == NULL) {
     status = ARCHIVE_NOT_READABLE;
   } else {
-    status = archive_info_initialize_from_file(archive->archive_info, file);
+    status = archiveinfo_initialize_from_file(archive->archive_info, file);
 
     fclose(file);
   }
@@ -383,7 +383,7 @@ int archive_add_file (struct Archive* archive, const char* name, const char* pat
   int status = 0;
   struct ArchiveInfo* archive_info = archive->archive_info;
 
-  if (archive_info_has_file(archive_info, name)) {
+  if (archiveinfo_has_file(archive_info, name)) {
     status = ARCHIVE_FILE_ALREADY_EXISTS;
   } else {
     FILE* file = fopen(path, "r");
@@ -396,15 +396,15 @@ int archive_add_file (struct Archive* archive, const char* name, const char* pat
       if (size == -1) {
         status = FILE_NOT_READABLE;
       } else {
-        ulint num_free = archive_info_num_free_blocks(archive_info);
-        ulint num_needed = archive_info_needed_blocks(archive_info, size);
+        ulint num_free = archiveinfo_num_free_blocks(archive_info);
+        ulint num_needed = archiveinfo_needed_blocks(archive_info, size);
 
         if (num_free < num_needed) {
           status = ARCHIVE_FILE_TOO_BIG;
         } else {
           ulint* free_blocks = malloc(num_needed * sizeof(ulint));
-          archive_info_get_free_blocks(archive_info, free_blocks, num_needed);
-          archive_info_add_file(archive_info, name, size, free_blocks, num_needed);
+          archiveinfo_get_free_blocks(archive_info, free_blocks, num_needed);
+          archiveinfo_add_file(archive_info, name, size, free_blocks, num_needed);
 
           status = archive_write_file_to_blocks(archive, file, size, free_blocks, num_needed);
           status == 0 && (status = archive_write_archive_info(archive));
@@ -424,7 +424,7 @@ int archive_get_file (struct Archive* archive, const char* name, const char* out
   int status = 0;
   struct ArchiveInfo* archive_info = archive->archive_info;
 
-  if (!archive_info_has_file(archive_info, name)) {
+  if (!archiveinfo_has_file(archive_info, name)) {
     status = ARCHIVE_FILE_NOT_FOUND;
   }
 
@@ -457,7 +457,7 @@ int archive_write_archive_info (struct Archive* archive) {
   if (structure_file == NULL) {
     status = ARCHIVE_NOT_WRITEABLE;
   } else {
-    status = archive_info_write(archive->archive_info, structure_file);
+    status = archiveinfo_write(archive->archive_info, structure_file);
 
     if (status != 0) {
       status = ARCHIVE_NOT_WRITEABLE;
@@ -505,7 +505,7 @@ int archive_initialize_store (struct Archive* archive) {
  * Gibt alle belegten Resourcen frei.
  */
 void archive_free (struct Archive* archive) {
-  archive_info_free(archive->archive_info);
+  archiveinfo_free(archive->archive_info);
 
   free(archive->structure_file);
   free(archive->store_file);
