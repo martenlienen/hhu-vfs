@@ -168,4 +168,39 @@ describe "VFS" do
       end
     end
   end
+
+  describe "How much bytes are free?" do
+    it "should exit with code 2 when the archive does not exist" do
+      `./vfs ./tmp/archive free`
+
+      expect($?.exitstatus).to eq 2
+    end
+
+    describe "when the archive exists" do
+      before(:each) do
+        `./vfs ./tmp/archive create 20 20`
+      end
+
+      it "should exit with code 0" do
+        `./vfs ./tmp/archive free`
+        
+        expect($?.exitstatus).to eq 0
+      end
+
+      it "should report all bytes as free in an empty archive" do
+        free_bytes = `./vfs ./tmp/archive free`
+
+        expect(free_bytes.to_i).to eq 400
+      end
+
+      it "should report the free bytes after adding a file" do
+        `echo "test" > ./tmp/file`
+        3.times { |i| `./vfs ./tmp/archive add ./tmp/file file#{i}` }
+        free_bytes = `./vfs ./tmp/archive free`
+
+        # Subtract +1 for the newline
+        expect(free_bytes.to_i).to eq 385
+      end
+    end
+  end
 end

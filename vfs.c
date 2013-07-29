@@ -362,6 +362,21 @@ void archiveinfo_delete_file (struct ArchiveInfo* archive_info, const char* name
   }
 }
 
+int archiveinfo_free_bytes (struct ArchiveInfo* archive_info) {
+  return archive_info->blockcount * archive_info->blocksize - archiveinfo_used_bytes(archive_info);
+}
+
+int archiveinfo_used_bytes (struct ArchiveInfo* archive_info) {
+  int used_bytes = 0;
+
+  int i;
+  for (i = 0; i < archive_info->num_files; i++) {
+    used_bytes += archive_info->file_infos[i]->size;
+  }
+
+  return used_bytes;
+}
+
 void archiveinfo_free (struct ArchiveInfo* archive_info) {
   free(archive_info->blocks);
 
@@ -605,6 +620,10 @@ int archive_delete_file (struct Archive* archive, const char* name) {
   return status;
 }
 
+int archive_free_bytes (struct Archive* archive) {
+  return archiveinfo_free_bytes(archive->archive_info);
+}
+
 /**
  * Erzeugt die beiden speziellen Pfade aus dem allgemeinen Archivpfad.
  *
@@ -774,6 +793,25 @@ int cli_del (const char* archive_path, const char* name) {
   }
 }
 
+int cli_free (const char* archive_path) {
+  int status = 0;
+
+  struct Archive* archive = archive_create();
+  status = archive_initialize_from_file(archive, archive_path);
+
+  printf("%d", archive_free_bytes(archive));
+
+  archive_free(archive);
+
+  switch (status) {
+    case ARCHIVE_NOT_READABLE:
+      printf("Das Archiv ist nicht lesbar");
+      return 2;
+    default:
+      return 0;
+  }
+}
+
 void help_create () {
   printf("USAGE: vfs ARCHIVE create BLOCKSIZE BLOCKCOUNT");
 }
@@ -790,11 +828,16 @@ void help_del () {
   printf("USAGE: vfs ARCHIVE del TARGET");
 }
 
+void help_free () {
+  printf("USAGE: vfs ARCHIVE free");
+}
+
 void help () {
   help_create();
   help_add();
   help_get();
   help_del();
+  help_free();
 }
 
 int main (int argc, char** argv) {
@@ -842,6 +885,8 @@ int main (int argc, char** argv) {
     }
 
     return cli_del(archive_path, argv[3]);
+  } else if (strcmp(command, "free") == 0) {
+    return cli_free(archive_path);
   } else {
     printf("Der Befehl ist ungültig");
     help();
