@@ -362,10 +362,6 @@ void archiveinfo_delete_file (struct ArchiveInfo* archive_info, const char* name
   }
 }
 
-int archiveinfo_free_bytes (struct ArchiveInfo* archive_info) {
-  return archive_info->blockcount * archive_info->blocksize - archiveinfo_used_bytes(archive_info);
-}
-
 int archiveinfo_used_bytes (struct ArchiveInfo* archive_info) {
   int used_bytes = 0;
 
@@ -375,6 +371,10 @@ int archiveinfo_used_bytes (struct ArchiveInfo* archive_info) {
   }
 
   return used_bytes;
+}
+
+int archiveinfo_free_bytes (struct ArchiveInfo* archive_info) {
+  return archive_info->blockcount * archive_info->blocksize - archiveinfo_used_bytes(archive_info);
 }
 
 void archiveinfo_free (struct ArchiveInfo* archive_info) {
@@ -624,6 +624,10 @@ int archive_free_bytes (struct Archive* archive) {
   return archiveinfo_free_bytes(archive->archive_info);
 }
 
+int archive_used_bytes (struct Archive* archive) {
+  return archiveinfo_used_bytes(archive->archive_info);
+}
+
 /**
  * Erzeugt die beiden speziellen Pfade aus dem allgemeinen Archivpfad.
  *
@@ -812,6 +816,25 @@ int cli_free (const char* archive_path) {
   }
 }
 
+int cli_used (const char* archive_path) {
+  int status = 0;
+
+  struct Archive* archive = archive_create();
+  status = archive_initialize_from_file(archive, archive_path);
+
+  printf("%d", archive_used_bytes(archive));
+
+  archive_free(archive);
+
+  switch (status) {
+    case ARCHIVE_NOT_READABLE:
+      printf("Das Archiv ist nicht lesbar");
+      return 2;
+    default:
+      return 0;
+  }
+}
+
 void help_create () {
   printf("USAGE: vfs ARCHIVE create BLOCKSIZE BLOCKCOUNT");
 }
@@ -832,12 +855,17 @@ void help_free () {
   printf("USAGE: vfs ARCHIVE free");
 }
 
+void help_used () {
+  printf("USAGE: vfs ARCHIVE used");
+}
+
 void help () {
   help_create();
   help_add();
   help_get();
   help_del();
   help_free();
+  help_used();
 }
 
 int main (int argc, char** argv) {
@@ -887,6 +915,8 @@ int main (int argc, char** argv) {
     return cli_del(archive_path, argv[3]);
   } else if (strcmp(command, "free") == 0) {
     return cli_free(archive_path);
+  } else if (strcmp(command, "used") == 0) {
+    return cli_used(archive_path);
   } else {
     printf("Der Befehl ist ungültig");
     help();
