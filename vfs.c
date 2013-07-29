@@ -2,7 +2,7 @@
 #include <stdio.h>
 #include <string.h>
 #include <stdbool.h>
-#include <stdint.h>
+#include <inttypes.h>
 
 bool file_exists (const char* file) {
   FILE* handle = fopen(file, "r");
