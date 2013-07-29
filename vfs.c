@@ -628,6 +628,29 @@ int archive_used_bytes (struct Archive* archive) {
   return archiveinfo_used_bytes(archive->archive_info);
 }
 
+void archive_print_list (struct Archive* archive) {
+  struct ArchiveInfo* archive_info = archive->archive_info;
+
+  int i;
+  for (i = 0; i < archive_info->num_files; i++) {
+    struct FileInfo* file_info = archive_info->file_infos[i];
+    ulint num_blocks = archiveinfo_get_num_allocated_blocks(archive_info, file_info->name);
+    ulint* blocks = malloc(num_blocks * sizeof(ulint));
+    archiveinfo_get_allocated_blocks(archive_info, file_info->name, blocks);
+
+    printf("%s,%d,%d", file_info->name, file_info->size, num_blocks);
+
+    int j;
+    for (j = 0; j < num_blocks; j++) {
+      printf(",%d", blocks[j]);
+    }
+
+    printf("\n");
+
+    free(blocks);
+  }
+}
+
 /**
  * Erzeugt die beiden speziellen Pfade aus dem allgemeinen Archivpfad.
  *
@@ -835,6 +858,23 @@ int cli_used (const char* archive_path) {
   }
 }
 
+int cli_list (const char* archive_path) {
+  int status = 0;
+
+  struct Archive* archive = archive_create();
+  status = archive_initialize_from_file(archive, archive_path);
+  archive_print_list(archive);
+  archive_free(archive);
+
+  switch (status) {
+    case ARCHIVE_NOT_READABLE:
+      printf("Das Archiv ist nicht lesbar");
+      return 2;
+    default:
+      return 0;
+  }
+}
+
 void help_create () {
   printf("USAGE: vfs ARCHIVE create BLOCKSIZE BLOCKCOUNT");
 }
@@ -859,6 +899,10 @@ void help_used () {
   printf("USAGE: vfs ARCHIVE used");
 }
 
+void help_list () {
+  printf("USAGE: vfs ARCHIVE list");
+}
+
 void help () {
   help_create();
   help_add();
@@ -866,6 +910,7 @@ void help () {
   help_del();
   help_free();
   help_used();
+  help_list();
 }
 
 int main (int argc, char** argv) {
@@ -917,6 +962,8 @@ int main (int argc, char** argv) {
     return cli_free(archive_path);
   } else if (strcmp(command, "used") == 0) {
     return cli_used(archive_path);
+  } else if (strcmp(command, "list") == 0) {
+    return cli_list(archive_path);
   } else {
     printf("Der Befehl ist ungültig");
     help();

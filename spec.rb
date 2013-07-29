@@ -238,4 +238,35 @@ describe "VFS" do
       end
     end
   end
+
+  describe "Listing files" do
+    it "should exit with code 2 when the archive does not exist" do
+      `./vfs ./tmp/archive list`
+
+      expect($?.exitstatus).to eq 2
+    end
+
+    describe "when the archive exists" do
+      before(:each) do
+        `./vfs ./tmp/archive create 50 1000`
+      end
+
+      it "should exit with code 0" do
+        `./vfs ./tmp/archive list`
+
+        expect($?.exitstatus).to eq 0
+      end
+
+      it "should output a list of files and infos" do
+        3.times do |i|
+          `echo "#{"a" * 75}" > ./tmp/file#{i}`
+          `./vfs ./tmp/archive add ./tmp/file#{i} file#{i}`
+        end
+
+        output = `./vfs ./tmp/archive list`
+
+        expect(output).to match "file1,76,2,2,3"
+      end
+    end
+  end
 end
