@@ -6,14 +6,14 @@
 typedef unsigned long int ulint;
 
 bool file_exists (const char* file) {
-  FILE* handle;
+  FILE* handle = fopen(file, "r");
 
-  if ((handle = fopen(file, "r"))) {
+  if (handle == NULL) {
+    return false;
+  } else {
     fclose(handle);
 
     return true;
-  } else {
-    return false;
   }
 }
 
@@ -455,7 +455,7 @@ int archive_initialize_from_file (struct Archive* archive, const char* archive_p
 
   FILE* file = fopen(archive->structure_file, "r");
 
-  if (file == NULL) {
+  if (file == NULL || !file_exists(archive->store_file)) {
     status = ARCHIVE_NOT_READABLE;
   } else {
     status = archiveinfo_initialize_from_file(archive->archive_info, file);
@@ -911,7 +911,7 @@ int cli_free (const char* archive_path) {
   struct Archive* archive = archive_create();
   status = archive_initialize_from_file(archive, archive_path);
 
-  printf("%d", archive_free_bytes(archive));
+  int free_bytes = archive_free_bytes(archive);
 
   archive_free(archive);
 
@@ -920,6 +920,7 @@ int cli_free (const char* archive_path) {
       printf("Das Archiv ist nicht lesbar");
       return 2;
     default:
+      printf("%d", free_bytes);
       return 0;
   }
 }
@@ -930,7 +931,7 @@ int cli_used (const char* archive_path) {
   struct Archive* archive = archive_create();
   status = archive_initialize_from_file(archive, archive_path);
 
-  printf("%d", archive_used_bytes(archive));
+  int used_bytes = archive_used_bytes(archive);
 
   archive_free(archive);
 
@@ -939,6 +940,7 @@ int cli_used (const char* archive_path) {
       printf("Das Archiv ist nicht lesbar");
       return 2;
     default:
+      printf("%d", used_bytes);
       return 0;
   }
 }
