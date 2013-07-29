@@ -473,7 +473,7 @@ int archive_initialize_from_file (struct Archive* archive, const char* archive_p
 int archive_write_file_to_blocks (struct Archive* archive, FILE* file, long int bytes, ulint* blocks, ulint num_blocks) {
   int status = 0;
   struct ArchiveInfo* archive_info = archive->archive_info;
-  FILE* store = fopen(archive->store_file, "w");
+  FILE* store = fopen(archive->store_file, "r+");
 
   if (store == NULL) {
     status = ARCHIVE_NOT_WRITEABLE;
@@ -492,6 +492,9 @@ int archive_write_file_to_blocks (struct Archive* archive, FILE* file, long int 
 
       if (file_read(&buffer, 1, chunk_size, file) != 0) {
         status = FILE_NOT_READABLE;
+        break;
+      } else if (fseek(store, blocks[i] * archive_info->blocksize, SEEK_SET) != 0) {
+        status = ARCHIVE_NOT_WRITEABLE;
         break;
       } else if (file_write(&buffer, 1, chunk_size, store) != 0) {
         status = ARCHIVE_NOT_WRITEABLE;
@@ -638,17 +641,99 @@ void archive_print_list (struct Archive* archive) {
     ulint* blocks = malloc(num_blocks * sizeof(ulint));
     archiveinfo_get_allocated_blocks(archive_info, file_info->name, blocks);
 
-    printf("%s,%d,%d", file_info->name, file_info->size, num_blocks);
+    printf("%s,%ld,%lu", file_info->name, file_info->size, num_blocks);
 
-    int j;
+    ulint j;
     for (j = 0; j < num_blocks; j++) {
-      printf(",%d", blocks[j]);
+      printf(",%lu", blocks[j]);
     }
 
     printf("\n");
 
     free(blocks);
   }
+}
+
+/**
+ * Vertauscht den Block i mit i + 1.
+ * 
+ * @private
+ */
+int archive_swap_blocks (struct Archive* archive, FILE* store, ulint i) {
+  int status = 0;
+
+  int tmp = archive->archive_info->blocks[i];
+  archive->archive_info->blocks[i] = archive->archive_info->blocks[i + 1];
+  archive->archive_info->blocks[i + 1] = tmp;
+
+  ulint blocksize = archive->archive_info->blocksize;
+
+  char buffer[blocksize];
+  char buffer2[blocksize];
+
+  if (fseek(store, i * blocksize, SEEK_SET) != 0) {
+    status = ARCHIVE_NOT_READABLE;
+  } else if (file_read(&buffer, 1, blocksize, store) != 0) {
+    status = ARCHIVE_NOT_READABLE;
+  } else if (file_read(&buffer2, 1, blocksize, store) != 0) {
+    status = ARCHIVE_NOT_READABLE;
+  } else if (fseek(store, i * blocksize, SEEK_SET) != 0) {
+    status = ARCHIVE_NOT_READABLE;
+  } else if (file_write(&buffer2, 1, blocksize, store) != 0) {
+    status = ARCHIVE_NOT_WRITEABLE;
+  } else if (file_write(&buffer, 1, blocksize, store) != 0) {
+    status = ARCHIVE_NOT_WRITEABLE;
+  }
+
+  return status;
+}
+
+/**
+ * Drückt den Block right an die Position left, wobei alle Blöcke dazwischen um
+ * 1 nach rechts verschoben werden.
+ *
+ * @private
+ */
+int archive_push_block (struct Archive* archive, FILE* store, ulint left, ulint right) {
+  int status = 0;
+
+  if (right > left) {
+    ulint i;
+    for (i = right - 1; i >= left && status == 0; i--) {
+      status = archive_swap_blocks(archive, store, i);
+    }
+  }
+
+  return status;
+}
+
+int archive_defrag (struct Archive* archive) {
+  int status = 0;
+  struct ArchiveInfo* archive_info = archive->archive_info;
+  FILE* store = fopen(archive->store_file, "r+");
+
+  if (store == NULL) {
+    status = ARCHIVE_NOT_READABLE;
+  } else {
+    ulint block_index = 0;
+    int i;
+
+    for (i = 0; i < archive_info->num_files; i++) {
+      ulint j;
+      for (j = block_index; j < archive_info->blockcount && status == 0; j++) {
+        if (archive_info->blocks[j] == i) {
+          status = archive_push_block(archive, store, block_index, j);
+          block_index++;
+        }
+      }
+    }
+
+    status == 0 && (status = archive_write_archive_info(archive));
+    
+    fclose(store);
+  }
+
+  return status;
 }
 
 /**
@@ -875,6 +960,24 @@ int cli_list (const char* archive_path) {
   }
 }
 
+int cli_defrag (const char* archive_path) {
+  int status = 0;
+
+  struct Archive* archive = archive_create();
+  status = archive_initialize_from_file(archive, archive_path);
+  status == 0 && (status = archive_defrag(archive));
+  archive_free(archive);
+
+  switch (status) {
+    case ARCHIVE_NOT_WRITEABLE:
+    case ARCHIVE_NOT_READABLE:
+      printf("Das Archiv ist nicht les-/schreibbar");
+      return 2;
+    default:
+      return 0;
+  }
+}
+
 void help_create () {
   printf("USAGE: vfs ARCHIVE create BLOCKSIZE BLOCKCOUNT");
 }
@@ -903,6 +1006,10 @@ void help_list () {
   printf("USAGE: vfs ARCHIVE list");
 }
 
+void help_defrag () {
+  printf("USAGE: vfs ARCHIVE defrag");
+}
+
 void help () {
   help_create();
   help_add();
@@ -911,6 +1018,7 @@ void help () {
   help_free();
   help_used();
   help_list();
+  help_defrag();
 }
 
 int main (int argc, char** argv) {
@@ -964,6 +1072,8 @@ int main (int argc, char** argv) {
     return cli_used(archive_path);
   } else if (strcmp(command, "list") == 0) {
     return cli_list(archive_path);
+  } else if (strcmp(command, "defrag") == 0) {
+    return cli_defrag(archive_path);
   } else {
     printf("Der Befehl ist ungültig");
     help();

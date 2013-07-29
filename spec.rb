@@ -1,3 +1,10 @@
+require "securerandom"
+require "shellwords"
+
+def random_bytes n
+  Shellwords.shellescape SecureRandom.base64(n)[0,n]
+end
+
 describe "VFS" do
   before(:each) do
     `rm -rf tmp`
@@ -266,6 +273,55 @@ describe "VFS" do
         output = `./vfs ./tmp/archive list`
 
         expect(output).to match "file1,76,2,2,3"
+      end
+    end
+  end
+
+  describe "Defragmentation" do
+    it "should exit with code 2 when the archive does not exist" do
+      `./vfs ./tmp/archive defrag`
+
+      expect($?.exitstatus).to eq 2
+    end
+
+    describe "when the archive exists" do
+      before(:each) do
+        `./vfs ./tmp/archive create 50 1000`
+      end
+
+      it "should exit with code 0" do
+        `./vfs ./tmp/archive defrag`
+
+        expect($?.exitstatus).to eq 0
+      end
+
+      describe "when there are files in the archive" do
+        before(:each) do
+          `echo #{random_bytes 75} > ./tmp/76bytes`
+          `echo #{random_bytes 179} > ./tmp/180bytes`
+
+          3.times { |i| `./vfs ./tmp/archive add ./tmp/76bytes file#{i}` }
+          `./vfs ./tmp/archive del file1`
+          `./vfs ./tmp/archive add ./tmp/180bytes big_file`
+
+          `./vfs ./tmp/archive defrag`
+        end
+
+        it "should defrag the archive" do
+          output = `./vfs ./tmp/archive list`
+
+          expect(output).to eq <<-DEFRAG
+file0,76,2,0,1
+file2,76,2,2,3
+big_file,180,4,4,5,6,7
+          DEFRAG
+        end
+
+        it "should not make files unreadable" do
+          `./vfs ./tmp/archive get big_file ./tmp/big_file`
+
+          expect(IO.read("./tmp/big_file")).to eq IO.read("./tmp/180bytes")
+        end
       end
     end
   end
