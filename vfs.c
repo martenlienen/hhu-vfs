@@ -622,11 +622,11 @@ int archive_delete_file (struct Archive* archive, const char* name) {
   return status;
 }
 
-int archive_free_bytes (struct Archive* archive) {
+uint64_t archive_free_bytes (struct Archive* archive) {
   return archiveinfo_free_bytes(archive->archive_info);
 }
 
-int archive_used_bytes (struct Archive* archive) {
+uint64_t archive_used_bytes (struct Archive* archive) {
   return archiveinfo_used_bytes(archive->archive_info);
 }
 
@@ -909,7 +909,7 @@ int cli_free (const char* archive_path) {
   struct Archive* archive = archive_create();
   status = archive_initialize_from_file(archive, archive_path);
 
-  int free_bytes = archive_free_bytes(archive);
+  uint64_t free_bytes = archive_free_bytes(archive);
 
   archive_free(archive);
 
@@ -918,7 +918,7 @@ int cli_free (const char* archive_path) {
       printf("Das Archiv ist nicht lesbar");
       return 2;
     default:
-      printf("%d", free_bytes);
+      printf("%lu", free_bytes);
       return 0;
   }
 }
@@ -929,7 +929,7 @@ int cli_used (const char* archive_path) {
   struct Archive* archive = archive_create();
   status = archive_initialize_from_file(archive, archive_path);
 
-  int used_bytes = archive_used_bytes(archive);
+  uint64_t used_bytes = archive_used_bytes(archive);
 
   archive_free(archive);
 
@@ -938,7 +938,7 @@ int cli_used (const char* archive_path) {
       printf("Das Archiv ist nicht lesbar");
       return 2;
     default:
-      printf("%d", used_bytes);
+      printf("%lu", used_bytes);
       return 0;
   }
 }

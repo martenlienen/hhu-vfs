@@ -201,12 +201,15 @@ describe "VFS" do
       end
 
       it "should report the free bytes after adding files" do
-        `echo "test" > ./tmp/file`
-        3.times { |i| `./vfs ./tmp/archive add ./tmp/file file#{i}` }
+        3.times do |i|
+          `echo #{random_bytes(50 - i)} > ./tmp/file#{i}`
+          `./vfs ./tmp/archive add ./tmp/file#{i} file#{i}`
+        end
+
         free_bytes = `./vfs ./tmp/archive free`
 
         # Subtract 1 for the newline
-        expect(free_bytes.to_i).to eq 385
+        expect(free_bytes.to_i).to eq 250
       end
     end
   end
