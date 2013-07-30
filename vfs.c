@@ -658,7 +658,9 @@ void archive_print_list (struct Archive* archive) {
     uint64_t* blocks = malloc(num_blocks * sizeof(uint64_t));
     archiveinfo_get_allocated_blocks(archive_info, file_info->name, blocks);
 
-    printf("%s,%ld,%lu", file_info->name, file_info->size, num_blocks);
+    /* Das wird in 2 Aufrufen gemacht, weil für num_blocks sonst komischerweise immer 0 ausgegeben wird */
+    printf("%s,%lu,", file_info->name, file_info->size);
+    printf("%lu", num_blocks);
 
     uint64_t j;
     for (j = 0; j < num_blocks; j++) {
