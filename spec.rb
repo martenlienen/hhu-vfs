@@ -200,16 +200,16 @@ describe "VFS" do
         expect(free_bytes.to_i).to eq 400
       end
 
-      it "should report the free bytes after adding files" do
+      it "should report the bytes in free blocks after adding files" do
         3.times do |i|
-          `echo #{random_bytes(50 - i)} > ./tmp/file#{i}`
+          `echo #{random_bytes 5} > ./tmp/file#{i}`
           `./vfs ./tmp/archive add ./tmp/file#{i} file#{i}`
         end
 
         free_bytes = `./vfs ./tmp/archive free`
 
         # Subtract 1 for the newline
-        expect(free_bytes.to_i).to eq 250
+        expect(free_bytes.to_i).to eq 340
       end
     end
   end
@@ -238,13 +238,13 @@ describe "VFS" do
         expect(used_bytes.to_i).to eq 0
       end
 
-      it "should report the used bytes after adding files" do
+      it "should report the bytes in allocated blocks after adding files" do
         `echo "test" > ./tmp/file`
         3.times { |i| `./vfs ./tmp/archive add ./tmp/file file#{i}` }
         used_bytes = `./vfs ./tmp/archive used`
 
         # Add 1 for the newline
-        expect(used_bytes.to_i).to eq 15
+        expect(used_bytes.to_i).to eq 60
       end
     end
   end

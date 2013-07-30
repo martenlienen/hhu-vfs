@@ -361,17 +361,35 @@ void archiveinfo_delete_file (struct ArchiveInfo* archive_info, const char* name
   }
 }
 
-uint64_t archiveinfo_used_bytes (struct ArchiveInfo* archive_info) {
-  uint64_t used_bytes = 0;
-
+/**
+ * Gibt die Anzahl belegter Blöcke zurück.
+ *
+ * @private
+ */
+uint64_t archiveinfo_count_allocated_blocks (struct ArchiveInfo* archive_info) {
+  uint64_t count = 0;
   uint64_t i;
-  for (i = 0; i < archive_info->num_files; i++) {
-    used_bytes += archive_info->file_infos[i]->size;
+  for (i = 0; i < archive_info->blockcount; i++) {
+    if (archive_info->blocks[i] != -1) {
+      count++;
+    }
   }
 
-  return used_bytes;
+  return count;
 }
 
+/**
+ * Gibt die verbrauchten Bytes zurück.
+ *
+ * Dabei werden Bytes allerdings blockweise addiert.
+ */
+uint64_t archiveinfo_used_bytes (struct ArchiveInfo* archive_info) {
+  return archiveinfo_count_allocated_blocks(archive_info) * archive_info->blocksize;
+}
+
+/**
+ * Gibt die Bytes in freien Blöcken zurück.
+ */
 uint64_t archiveinfo_free_bytes (struct ArchiveInfo* archive_info) {
   return (archive_info->blockcount * archive_info->blocksize) - archiveinfo_used_bytes(archive_info);
 }
